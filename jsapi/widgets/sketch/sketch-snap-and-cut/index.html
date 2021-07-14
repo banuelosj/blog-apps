@@ -1,0 +1,32 @@
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Sketch Snap Cutter</title>
+
+  <link rel="stylesheet" href="https://js.arcgis.com/next/esri/themes/light/main.css" />
+  <link rel="stylesheet" type="text/css" href="./styles.css" />
+
+  <!-- calcite components-->
+  <link rel="stylesheet" type="text/css" href="https://jsdev.arcgis.com/calcite-components/1.0.0-beta.52/calcite.css" />
+  <script type="module" src="https://jsdev.arcgis.com/calcite-components/1.0.0-beta.52/calcite.esm.js"></script>
+  <script nomodule="" src="https://jsdev.arcgis.com/calcite-components/1.0.0-beta.52/calcite.js"></script>
+
+  <script src="https://js.arcgis.com/next/"></script>
+  <script src="./app.js"></script>
+</head>
+
+<body>
+  <div id="viewDiv"></div>
+  <calcite-block id="block" class="block" open heading="Cut" summary="Cut polygon into sections">
+    <calcite-tooltip label="Hello World" open placement="auto" referenceElement="drawCutterBtn">This is the message of the tooltip</calcite-tooltip>
+    <calcite-button id="drawCutterBtn" icon-start="pencil" scale="s">draw</calcite-button>
+    <calcite-button id="cutBtn" icon-start="scissors" scale="s" disabled>cut</calcite-button>
+    <p id="errorDiv"></p>
+    <calcite-label class="block" id="labelSwitch">Area Labels
+      <calcite-switch scale="m"></calcite-switch>
+    </calcite-label>
+  </calcite-block>
+</body>
+
+</html>
