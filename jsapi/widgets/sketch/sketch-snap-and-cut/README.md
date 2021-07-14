@@ -2,7 +2,7 @@
 
 This application highlights how one can take advantage of snapping in the Sketch widget to perform some polygon geometry cuts using the geometryEngine with the ArcGIS API for JavaScript. Snapping makes it easier for us to cut more symmetrical geometries, as we have right-angle indicators and parrallel line symbol indicators as part of the snapping engine. This application will show us how much easier our lives have been made since snapping was added to the Sketch widget in 2D MapViews and 3D SceneViews. You can also see the areas of the geometries you create in this example.
 
-<img src="sketch-snap-and-cut.png" width="600"/>
+<img src="sketch-snap-and-cut.png" width="1000"/>
 
 ## How to use the application
 
