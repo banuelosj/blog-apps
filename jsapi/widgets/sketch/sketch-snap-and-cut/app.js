@@ -7,7 +7,6 @@ require([
   "esri/views/MapView",
   "esri/geometry/geometryEngine"
 ], (Sketch, SketchViewModel, Map, GraphicsLayer, Graphic, MapView, geometryEngine) => {
-  let cropGraphic;
   let cuttable = false;
   let cuttingPolyline = null;
   let selectedGraphics = [];
@@ -15,10 +14,11 @@ require([
   let currentGraphics = null;
   const labelsVisible = false;
 
-  const AREA_UNIT = "square-meters";
+  let areaUnit = "square-kilometers";
+  let areaLabel = " sq. km";
   
-  const graphicsLayer = new GraphicsLayer();
-  const labelsGraphicsLayer = new GraphicsLayer({ visible: false });
+  const graphicsLayer = new GraphicsLayer({ title: "GraphicsLayer" });
+  const labelsGraphicsLayer = new GraphicsLayer({ visible: false, title: "LabelsLayer" });
 
   const cropSquare = {
     type: "polygon",
@@ -88,10 +88,12 @@ require([
     view: view,
     // graphic will be selected as soon as it is created
     creationMode: "update",
+    // turn snapping on by default for graphicsLayer only
     snappingOptions: {
       enabled: true,
-      featureSources: [{ layer: graphicsLayer }]
+      featureSources: [{ layer: graphicsLayer, enabled: true }]
     },
+    // hide the point and polyline draw tools, as well as the lasso selection
     visibleElements: {
       createTools: {
         point: false,
@@ -100,15 +102,21 @@ require([
       selectionTools: {
         "lasso-selection": false
       }
-    }
+    },
+    // override the default symbology with SketchViewModel
+    viewModel: new SketchViewModel({
+      view: view,
+      layer: graphicsLayer,
+      polygonSymbol: pieceFillSymbol,
+      polylineSymbol: lineSymbol
+    })
   });
 
   view.ui.add(sketch, "top-right");
 
-  sketch.on('create', (evt) => {
+  sketch.on("create", (evt) => {
     if(evt.state === "complete" && evt.tool === "polyline") {
-      evt.graphic.symbol = lineSymbol;
-      document.getElementById('errorDiv').innerText = "";
+      document.getElementById("errorDiv").innerText = "";
       drawCutterBtn.disabled = true;
 
       // highlight the graphics that overlap and intersect
@@ -117,14 +125,26 @@ require([
     }
     // let's override the default symbol of all polygon tools
     if(evt.state === "complete" && (evt.tool === "polygon" || evt.tool === "rectangle" || evt.tool === "circle")) {
-      evt.graphic.symbol = pieceFillSymbol;
       getArea(evt.graphic.geometry);
+    }
+  });
+
+  // listen for a delete on Sketch
+  sketch.on("delete", (evt) => {
+    for (const graphic of evt.graphics) {
+      // if we delete the cutter line, then disable cut and enable draw
+      if(graphic.geometry.type === "polyline") {
+        drawCutterBtn.disabled = false;
+        cutBtn.disabled = true;
+        cuttingPolyline = null;
+        break;
+      }
     }
   });
 
   view.when(() => {
     // set pre-defined graphic
-    cropGraphic = new Graphic({
+    const cropGraphic = new Graphic({
       geometry: cropSquare,
       symbol: fillSymbol,
       spatialReference: view.spatialReference
@@ -145,7 +165,7 @@ require([
 
   // use geometryEngine to calculate geodesic area
   function getArea(geom) {
-    const area = geometryEngine.geodesicArea(geom, AREA_UNIT);  // set to "square-meters" 
+    const area = geometryEngine.geodesicArea(geom, areaUnit);  // set to "square-kilometers" 
     setAreaText(geom, area.toFixed(2));
   }
 
@@ -153,7 +173,7 @@ require([
   function setAreaText(geom, area) {
     const point = findCentroid(geom);
     const symb = areaTextSymbol;
-    symb.text = `${area}m2`;
+    symb.text = `${area}${areaLabel}`;
 
     const graphic = new Graphic({
       geometry: point,
@@ -173,13 +193,17 @@ require([
     const sections = geometryEngine.cut(polygonGraphic.geometry, cutterGraphic.geometry);
 
     if(!!sections.length) {
+      // remove current polygon and cutter line
+      graphicsLayer.remove(polygonGraphic);
+      graphicsLayer.remove(cutterGraphic);
+      // display the new section polygons
       displaySections(sections);
     } else {
       graphicsLayer.remove(cutterGraphic);
       if(graphicsLayer.graphics.length > currentGraphics) {
         return;
       } else {
-        document.getElementById('errorDiv').innerText = "not a valid cut";
+        document.getElementById("errorDiv").innerText = "not a valid cut";
         return;
       }
     }
@@ -187,18 +211,6 @@ require([
 
   // add sections to the graphicslayer
   function displaySections(geometries) {
-    // remove the polygons that cross or contain the cutter line
-    selectedGraphics.forEach((graphic) => {
-      containerPolygons.forEach((poly) => {
-        if(graphic === poly) {
-          graphicsLayer.remove(poly);
-        }
-      })
-    });
-
-    // remove cutting polyline && textSymbol graphics
-    graphicsLayer.remove(cuttingPolyline);
-
     geometries.forEach((geom) => {
       const graphic = new Graphic({
         geometry: geom,
@@ -208,6 +220,7 @@ require([
     });
   }
 
+  // select the graphics that will be cut (does not highlight)
   function selectIntersectingGraphics(layer, lineGraphic) {
     containerPolygons = [];
     selectedGraphics = [];
@@ -231,7 +244,6 @@ require([
       crossingGraphics.items.forEach((graphic) => {
         selectedGraphics.push(graphic);
       });
-
       cutBtn.disabled = false;
       cuttable = true;
       cuttingPolyline = lineGraphic;
@@ -242,13 +254,15 @@ require([
   }
 
   // calcite logic
-  view.ui.add(document.getElementById('block'), "top-left");
+  view.ui.add(document.getElementById("block"), "top-left");
 
-  const labelSwitch = document.getElementById('labelSwitch');
-  const drawCutterBtn = document.getElementById('drawCutterBtn');
-  const cutBtn = document.getElementById('cutBtn');
+  const labelSwitch = document.getElementById("labelSwitch");
+  const drawCutterBtn = document.getElementById("drawCutterBtn");
+  const cutBtn = document.getElementById("cutBtn");
+  const unitsSelect = document.getElementById("unitsSelect");
 
-  labelSwitch.addEventListener('calciteSwitchChange', displayAreaLabels);
+  labelSwitch.addEventListener("calciteSwitchChange", displayAreaLabels);
+  unitsSelect.addEventListener("calciteSelectChange", () => { handleSelectChange(unitsSelect); });
   drawCutterBtn.onclick = () => { drawCutterLine() };
   cutBtn.onclick = () => { cutGeometries() };
 
@@ -257,7 +271,7 @@ require([
     if(!!cuttingPolyline) {
       graphicsLayer.remove(cuttingPolyline);
     }
-    sketch.create('polyline');
+    sketch.create("polyline");
   }
 
   // cut the selected geometryies with the drawn polyline
@@ -270,7 +284,7 @@ require([
     if(labelsGraphicsLayer.visible) {
       labelsGraphicsLayer.removeAll();
 
-      // loop through all the graphics and calculate each polygon's area
+      // loop through all the graphics and calculate each polygon"s area
       graphicsLayer.graphics.forEach(graphic => {
         if (graphic.geometry.type === "polygon") {
           getArea(graphic.geometry);
@@ -295,6 +309,48 @@ require([
     } else {
       // hide the labels
       labelsGraphicsLayer.visible = false;
+    }
+  }
+
+  function handleSelectChange(element) {
+    areaUnit = element.selectedOption.value;
+    setAreaLabel(areaUnit);
+    // remove existing labels in case the graphics were moved
+    labelsGraphicsLayer.removeAll();
+
+    // loop through all the graphics and calculate each polygon's area
+    graphicsLayer.graphics.forEach(graphic => {
+      if (graphic.geometry.type === "polygon") {
+        getArea(graphic.geometry);
+      }
+    });
+  }
+
+  function setAreaLabel(unit) {
+    switch (unit) {
+      case "acres":
+        areaLabel = " ac";
+        break;
+      case "hectares":
+        areaLabel = " ha";
+        break;
+      case "square-feet":
+        areaLabel = " sq. ft";
+        break;
+      case "square-meters":
+        areaLabel = " sq. m";
+        break;
+      case "square-yards":
+        areaLabel = " sq. yd";
+        break;
+      case "square-kilometers":
+        areaLabel = " sq. km";
+        break;
+      case "square-miles":
+        areaLabel = " sq. mi";
+        break;
+      default:
+        return;
     }
   }
 });
